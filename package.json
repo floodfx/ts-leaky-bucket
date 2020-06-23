@@ -4,8 +4,7 @@
   "scripts": {
     "build": "rm -rf dist; tsc",
     "test": "jest",
-    "format": "prettier --write '{src,tests}/**/*.ts'",
-    "start": "./run.sh --inspect=localhost:9230 src/express.ts"
+    "format": "prettier --write '{src,tests}/**/*.ts'"
   },
   "devDependencies": {
     "@types/jest": "^25.2.1",
