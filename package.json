@@ -4,7 +4,7 @@
   "scripts": {
     "build": "rm -rf dist; tsc",
     "test": "jest",
-    "format": "prettier --write '{src,tests}/**/*.{ts}'",
+    "format": "prettier --write '{src,tests}/**/*.ts'",
     "start": "./run.sh --inspect=localhost:9230 src/express.ts"
   },
   "devDependencies": {
@@ -21,11 +21,7 @@
   },
   "husky": {
     "hooks": {
-      "pre-commit": "lint-staged"
+      "pre-commit": "npm run format"
     }
-  },
-  "private": true,
-  "lint-staged": {
-    "*.ts": "prettier --write"
   }
 }
