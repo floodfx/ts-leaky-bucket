@@ -5,12 +5,14 @@ interface LeakyBucketOptions {
 }
 
 interface LeakyBucketApi {
-  throttle(cost: number, append: boolean, isPause: boolean): Promise<unknown>;
+  throttle(cost: number, append: boolean, isPause: boolean): Promise<void>;
+  pause(seconds: number): void;
+  awaitEmpty(): Promise<void>;
 }
 
 interface LeakyBucketItem {
-  resolve: (value?: unknown) => void;
-  reject: (reason?: any) => void;
+  resolve: () => void;
+  reject: (reason: Error) => void;
   cost: number;
   isPause: boolean;
 }
@@ -41,6 +43,8 @@ export class LeakyBucket implements LeakyBucketApi {
 
     this.currentCapacity = this.options.capacity;
     this.updateVariables();
+    // create this before adding items to the queue
+    this.maybeCreateEmptyPromiseResolver();
   }
 
   get capacity() {
@@ -68,7 +72,7 @@ export class LeakyBucket implements LeakyBucketApi {
       );
     }
 
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       const item: LeakyBucketItem = {
         resolve,
         reject,
@@ -127,10 +131,8 @@ export class LeakyBucket implements LeakyBucketApi {
   /**
    * removes the first item in the queue, resolves the promise that indicated
    * that the bucket is empty and no more items are waiting
-   *
-   * @private
    */
-  shiftQueue() {
+  private shiftQueue() {
     this.queue.shift();
 
     if (this.queue.length === 0 && this.emptyPromiseResolver) {
@@ -138,11 +140,7 @@ export class LeakyBucket implements LeakyBucketApi {
     }
   }
 
-  /**
-   * is resolved as soon as the bucket is empty. is basically an event
-   * that is emitted
-   */
-  async isEmpty() {
+  private maybeCreateEmptyPromiseResolver() {
     if (!this.emptyPromiseResolver) {
       this.emptyPromise = new Promise((resolve) => {
         this.emptyPromiseResolver = () => {
@@ -151,6 +149,21 @@ export class LeakyBucket implements LeakyBucketApi {
           resolve();
         };
       });
+    }
+  }
+
+  /**
+   * is resolved as soon as the bucket is empty. is basically an event
+   * that is emitted
+   */
+  async awaitEmpty() {
+    // ensure empty promise resolver created
+    this.maybeCreateEmptyPromiseResolver();
+
+    // handle race condition if awaitEmpty is called after throttle
+    // loop has already completed `shiftQueue` call
+    if (this.queue.length === 0 && this.emptyPromiseResolver) {
+      this.emptyPromiseResolver();
     }
 
     return this.emptyPromise;
@@ -227,7 +240,7 @@ export class LeakyBucket implements LeakyBucketApi {
       this.currentCapacity += refillAmount;
       console.log(
         `Refilled the bucket with ${refillAmount}, last refill was ${
-          this.lastRefill
+        this.lastRefill
         }, current Date is ${Date.now()}, diff is ${Date.now() - this.lastRefill} msec`,
       );
 

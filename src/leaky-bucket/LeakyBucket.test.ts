@@ -73,21 +73,46 @@ describe("Leaky Bucket", () => {
 
   test("Empty bucket promise", async () => {
     const bucket = new LeakyBucket({
-      capacity: 60,
+      capacity: 100,
       interval: 60,
       timeout: 70,
     });
 
-    const empty = bucket.isEmpty();
     const start = Date.now();
-    bucket.throttle(60);
+    bucket.throttle(100);
     bucket.throttle(1);
 
-    if (empty) {
-      await empty;
-    }
+    await bucket.awaitEmpty();
 
     const duration = Date.now() - start;
+    expect(duration).toBeGreaterThanOrEqual(0);
+    expect(duration).toBeLessThan(100);
+  });
+
+  test("Await empty bucket promise twice", async () => {
+    const bucket = new LeakyBucket({
+      capacity: 100,
+      interval: 60,
+      timeout: 70,
+    });
+
+    let start = Date.now();
+    bucket.throttle(100);
+    bucket.throttle(1);
+
+    await bucket.awaitEmpty();
+
+    let duration = Date.now() - start;
+    expect(duration).toBeGreaterThanOrEqual(0);
+    expect(duration).toBeLessThan(100);
+
+    start = Date.now();
+    bucket.throttle(100);
+    bucket.throttle(1);
+
+    await bucket.awaitEmpty();
+
+    duration = Date.now() - start;
     expect(duration).toBeGreaterThanOrEqual(0);
     expect(duration).toBeLessThan(100);
   });
