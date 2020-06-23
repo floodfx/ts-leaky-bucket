@@ -1,9 +1,11 @@
 {
   "name": "ts-leaky-bucket",
   "version": "1.0.0",
+  "main": "./dist/index.js",
   "scripts": {
     "build": "rm -rf dist; tsc",
     "test": "jest",
+    "pre-publish": "npm run test; npm run build",
     "format": "prettier --write '{src,tests}/**/*.ts'"
   },
   "devDependencies": {

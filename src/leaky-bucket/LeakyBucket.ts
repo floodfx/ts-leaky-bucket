@@ -75,8 +75,6 @@ export class LeakyBucket implements LeakyBucketApi {
 
     // if items are added at the beginning, the excess items will be remove
     // later on
-    console.log("this.totalCost + cost", this.totalCost + cost);
-    console.log("maxCurrentCapacity", maxCurrentCapacity);
     if (append && this.totalCost + cost > maxCurrentCapacity) {
       throw new Error(
         `Cannot throttle item, bucket is overflowing: the maximum capacity is ${maxCurrentCapacity}, the current total capacity is ${this.totalCost}!`,
@@ -95,10 +93,8 @@ export class LeakyBucket implements LeakyBucketApi {
 
       if (append) {
         this.queue.push(item);
-        console.log(`Appended an item with the cost of ${cost} to the queue`);
       } else {
         this.queue.unshift(item);
-        console.log(`Added an item to the start of the queue with the cost of ${cost} to the queue`);
         this.cleanQueue();
       }
 
@@ -113,7 +109,6 @@ export class LeakyBucket implements LeakyBucketApi {
   private startTimer() {
     if (!this.timer && this.queue.length > 0) {
       const item = this.getFirstItem();
-      console.log(`Processing an item with the cost of ${item?.cost}`);
 
       this.refill();
 
@@ -206,8 +201,6 @@ export class LeakyBucket implements LeakyBucketApi {
    * @param {number} cost the ost to pay
    */
   pay(cost: number) {
-    console.log(`Paying ${cost}`);
-
     // reduce the current capacity, so that bursts
     // as calculated correctly
     this.currentCapacity -= cost;
@@ -231,7 +224,6 @@ export class LeakyBucket implements LeakyBucketApi {
    */
   pauseByCost(cost: number) {
     this.stopTimer();
-    console.log(`Pausing bucket for ${cost} cost`);
     this.throttle(cost, false, true);
   }
 
@@ -245,7 +237,6 @@ export class LeakyBucket implements LeakyBucketApi {
     this.drain();
     this.stopTimer();
     const cost = this.refillRate * seconds;
-    console.log(`Pausing bucket for ${seconds} seonds`);
     this.pauseByCost(cost);
   }
 
@@ -254,7 +245,6 @@ export class LeakyBucket implements LeakyBucketApi {
    */
   private stopTimer() {
     if (this.timer) {
-      console.log(`Stopping timer`);
       clearTimeout(this.timer);
       this.timer = undefined;
     }
@@ -271,17 +261,11 @@ export class LeakyBucket implements LeakyBucketApi {
       // refill the currently avilable capacity
       const refillAmount = ((Date.now() - this.lastRefill) / 1000) * this.refillRate;
       this.currentCapacity += refillAmount;
-      console.log(
-        `Refilled the bucket with ${refillAmount}, last refill was ${
-          this.lastRefill
-        }, current Date is ${Date.now()}, diff is ${Date.now() - this.lastRefill} msec`,
-      );
 
       // make sure, that no more capacity is added than is the maximum
       if (this.currentCapacity >= capacity) {
         this.currentCapacity = capacity;
         this.lastRefill = 0;
-        console.log(`Buckets capacity is fully recharged`);
       } else {
         // date of last refill, ued for the next refill
         this.lastRefill = Date.now();
@@ -344,7 +328,6 @@ export class LeakyBucket implements LeakyBucketApi {
    * drains the bucket, so that nothing can be exuted at the moment
    */
   private drain() {
-    console.log(`Draining the bucket, removing ${this.currentCapacity} from it, so that the current capacity is 0`);
     this.currentCapacity = 0;
     this.lastRefill = Date.now();
   }
