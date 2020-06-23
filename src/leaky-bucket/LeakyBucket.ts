@@ -1,10 +1,10 @@
-interface LeakyBucketOptions {
+export interface LeakyBucketOptions {
   capacity: number;
-  timeout: number;
-  interval: number;
+  timeoutMillis: number;
+  intervalMillis: number;
 }
 
-interface LeakyBucketApi {
+export interface LeakyBucketApi {
   throttle(cost: number, append: boolean, isPause: boolean): Promise<void>;
   pause(seconds: number): void;
   awaitEmpty(): Promise<void>;
@@ -19,9 +19,9 @@ interface LeakyBucketItem {
 
 export class LeakyBucket implements LeakyBucketApi {
   private defaultOptions: LeakyBucketOptions = {
-    capacity: 60, // items
-    timeout: 60, // wait in seconds
-    interval: 60000, //MS
+    capacity: 60,
+    timeoutMillis: 60000,
+    intervalMillis: 60000,
   };
 
   private options: LeakyBucketOptions;
@@ -352,27 +352,24 @@ export class LeakyBucket implements LeakyBucketApi {
     return this.options.capacity;
   }
 
-  get timeout() {
-    return this.options.timeout;
+  get timeoutMillis() {
+    return this.options.timeoutMillis;
   }
 
-  get interval() {
-    return this.options.interval;
+  get intervalMillis() {
+    return this.options.intervalMillis;
   }
 
   /**
    * calculates the values maxCapacity and refillRate
    */
   private calcMaxCapacityAndRefillRate() {
-    const { timeout, interval, capacity } = this.options;
-    // take one as default for each variable since this method may be called
-    // before every variable was set
-    this.maxCapacity = ((timeout || 1) / (interval || 1)) * (capacity || 1);
+    const { timeoutMillis, intervalMillis, capacity } = this.options;
+
+    // max capaciy is timeout seconds / interval ms * capacity
+    this.maxCapacity = (timeoutMillis / 1000 / intervalMillis) * capacity;
 
     // the rate, at which the leaky bucket is filled per second
-    this.refillRate = (capacity || 1) / (interval || 1);
-
-    console.log(`the buckets max capacity is now ${this.maxCapacity}`);
-    console.log(`the buckets refill rate is now ${this.refillRate}`);
+    this.refillRate = capacity / intervalMillis;
   }
 }

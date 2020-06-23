@@ -4,13 +4,13 @@ describe("Leaky Bucket", () => {
   test("Compute factors correctly", async () => {
     const bucket = new LeakyBucket({
       capacity: 120,
-      interval: 60,
-      timeout: 300,
+      intervalMillis: 60,
+      timeoutMillis: 300000,
     });
 
     expect(bucket.capacity).toEqual(120);
-    expect(bucket.interval).toEqual(60);
-    expect(bucket.timeout).toEqual(300);
+    expect(bucket.intervalMillis).toEqual(60);
+    expect(bucket.timeoutMillis).toEqual(300000);
 
     expect(bucket.maxCapacity).toEqual(600);
     expect(bucket.refillRate).toEqual(2);
@@ -19,8 +19,8 @@ describe("Leaky Bucket", () => {
   test("Excute items that are burstable and wait for the ones that cannot burst", async () => {
     const bucket = new LeakyBucket({
       capacity: 100,
-      interval: 60,
-      timeout: 300,
+      intervalMillis: 60,
+      timeoutMillis: 300000,
     });
 
     const start = Date.now();
@@ -38,8 +38,8 @@ describe("Leaky Bucket", () => {
     expect.assertions(1);
     const bucket = new LeakyBucket({
       capacity: 100,
-      interval: 60,
-      timeout: 300,
+      intervalMillis: 60,
+      timeoutMillis: 300000,
     });
 
     bucket.throttle(500);
@@ -56,8 +56,8 @@ describe("Leaky Bucket", () => {
     expect.assertions(1);
     const bucket = new LeakyBucket({
       capacity: 60,
-      interval: 60,
-      timeout: 70,
+      intervalMillis: 60,
+      timeoutMillis: 70000,
     });
 
     bucket.throttle(80).catch(async (err) => {
@@ -75,8 +75,8 @@ describe("Leaky Bucket", () => {
   test("Empty bucket promise", async () => {
     const bucket = new LeakyBucket({
       capacity: 100,
-      interval: 60,
-      timeout: 70,
+      intervalMillis: 60,
+      timeoutMillis: 70000,
     });
 
     const start = Date.now();
@@ -93,8 +93,8 @@ describe("Leaky Bucket", () => {
   test("Await empty bucket promise twice", async () => {
     const bucket = new LeakyBucket({
       capacity: 100,
-      interval: 60,
-      timeout: 70,
+      intervalMillis: 60,
+      timeoutMillis: 70000,
     });
 
     let start = Date.now();
@@ -121,8 +121,8 @@ describe("Leaky Bucket", () => {
   test("pausing the bucket", async () => {
     const bucket = new LeakyBucket({
       capacity: 60,
-      interval: 60,
-      timeout: 120,
+      intervalMillis: 60,
+      timeoutMillis: 120000,
     });
 
     const start = Date.now();
