@@ -1,0 +1,12 @@
+node_modules/
+.env
+.DS_Store
+/.idea/
+.vscode
+coverage
+
+# Generated
+/src/generated/
+/dist/
+/temp/
+*.zip
