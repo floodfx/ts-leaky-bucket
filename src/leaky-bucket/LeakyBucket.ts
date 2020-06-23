@@ -29,7 +29,8 @@ export class LeakyBucket implements LeakyBucketApi {
   private queue: LeakyBucketItem[] = [];
   private totalCost: number = 0;
   private currentCapacity: number;
-  private lastRefill: number = 0; // e.g. Date.now
+
+  private lastRefill: number = 0; // i.e. Date.now
   private timer?: NodeJS.Timeout;
 
   refillRate: number = 0;
