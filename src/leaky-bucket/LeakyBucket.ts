@@ -26,12 +26,12 @@ export class LeakyBucket implements LeakyBucketApi {
   private queue: LeakyBucketItem[] = [];
   private totalCost: number = 0;
   private currentCapacity: number;
-  private lastRefill?: number; // e.g. Date.now
+  private lastRefill: number = 0; // e.g. Date.now
   private timer?: NodeJS.Timeout;
-  private emptyPromise?: Promise<unknown>;
+  private emptyPromise?: Promise<void>;
   private emptyPromiseResolver?: () => void;
-  private refillRate?: number;
-  private maxCapacity?: number;
+  refillRate: number = 0;
+  maxCapacity: number = 0;
 
   constructor(options?: LeakyBucketOptions) {
     this.options = {
@@ -40,14 +40,28 @@ export class LeakyBucket implements LeakyBucketApi {
     };
 
     this.currentCapacity = this.options.capacity;
+    this.updateVariables();
   }
 
-  async throttle(cost: number = 1, append: boolean, isPause: boolean = false) {
-    this.refill();
+  get capacity() {
+    return this.options.capacity;
+  }
+
+  get timeout() {
+    return this.options.timeout;
+  }
+
+  get interval() {
+    return this.options.interval;
+  }
+
+  async throttle(cost: number = 1, append: boolean = true, isPause: boolean = false) {
     const maxCurrentCapacity = this.getCurrentMaxCapacity();
 
     // if items are added at the beginning, the excess items will be remove
     // later on
+    console.log("this.totalCost + cost", this.totalCost + cost);
+    console.log("maxCurrentCapacity", maxCurrentCapacity);
     if (append && this.totalCost + cost > maxCurrentCapacity) {
       throw new Error(
         `Cannot throttle item, bucket is overflowing: the maximum capacity is ${maxCurrentCapacity}, the current total capacity is ${this.totalCost}!`,
@@ -66,10 +80,10 @@ export class LeakyBucket implements LeakyBucketApi {
 
       if (append) {
         this.queue.push(item);
-        // log.debug(`Appended an item with the cost of ${cost} to the queue`);
+        console.log(`Appended an item with the cost of ${cost} to the queue`);
       } else {
         this.queue.unshift(item);
-        // log.debug(`Added an item to the start of the queue with the cost of ${cost} to the queue`);
+        console.log(`Added an item to the start of the queue with the cost of ${cost} to the queue`);
         this.cleanQueue();
       }
 
@@ -80,14 +94,11 @@ export class LeakyBucket implements LeakyBucketApi {
   startTimer() {
     if (!this.timer && this.queue.length > 0) {
       const item = this.getFirstItem();
-      // log.debug(`Processing an item with the cost of ${item.cost}`);
-      if (!item) {
-        return;
-      }
+      console.log(`Processing an item with the cost of ${item?.cost}`);
 
       this.refill();
 
-      if (this.currentCapacity >= item.cost) {
+      if (item?.cost && this.currentCapacity >= item.cost) {
         item.resolve();
         // log.info(`Resolved an item with the cost ${item.cost}`)
 
@@ -100,7 +111,7 @@ export class LeakyBucket implements LeakyBucketApi {
         // go to the next item
         this.startTimer();
       } else {
-        const requiredDelta = item.cost + this.currentCapacity * -1;
+        const requiredDelta = (item?.cost || 0) + this.currentCapacity * -1;
         const timeToDelta = (requiredDelta / this.refillRate) * 1000;
 
         // log.info(`Waiting ${timeToDelta} for topping up ${requiredDelta} capacity until the next item can be processed ...`);
@@ -160,7 +171,7 @@ export class LeakyBucket implements LeakyBucketApi {
    * @privae
    */
   clear() {
-    // log.debug(`Resetting queue`);
+    console.log(`Resetting queue`);
     this.queue = [];
   }
 
@@ -171,7 +182,7 @@ export class LeakyBucket implements LeakyBucketApi {
    * @param {number} cost the ost to pay
    */
   pay(cost: number) {
-    // log.debug(`Paying ${cost}`);
+    console.log(`Paying ${cost}`);
 
     // reduce the current capacity, so that bursts
     // as calculated correctly
@@ -195,7 +206,7 @@ export class LeakyBucket implements LeakyBucketApi {
    */
   stopTimer() {
     if (this.timer) {
-      // log.debug(`Stopping timer`);
+      console.log(`Stopping timer`);
       clearTimeout(this.timer);
       this.timer = undefined;
     }
@@ -214,13 +225,17 @@ export class LeakyBucket implements LeakyBucketApi {
       // refill the currently avilable capacity
       const refillAmount = ((Date.now() - this.lastRefill) / 1000) * this.refillRate;
       this.currentCapacity += refillAmount;
-      // log.debug(`Refilled the bucket with ${refillAmount}, last refill was ${this.lastRefill}, current Date is ${Date.now()}, diff is ${(Date.now() - this.lastRefill)} msec`);
+      console.log(
+        `Refilled the bucket with ${refillAmount}, last refill was ${
+          this.lastRefill
+        }, current Date is ${Date.now()}, diff is ${Date.now() - this.lastRefill} msec`,
+      );
 
       // make sure, that no more capacity is added than is the maximum
       if (this.currentCapacity >= capacity) {
         this.currentCapacity = capacity;
-        this.lastRefill = undefined;
-        // log.debug(`Buckets capacity is fully recharged`);
+        this.lastRefill = 0;
+        console.log(`Buckets capacity is fully recharged`);
       } else {
         // date of last refill, ued for the next refill
         this.lastRefill = Date.now();
@@ -235,7 +250,7 @@ export class LeakyBucket implements LeakyBucketApi {
    * @private
    */
   getCurrentMaxCapacity() {
-    // this.refill();
+    this.refill();
     return this.maxCapacity - (this.options.capacity - this.currentCapacity);
   }
 
@@ -293,7 +308,7 @@ export class LeakyBucket implements LeakyBucketApi {
    */
   pauseByCost(cost: number) {
     this.stopTimer();
-    // log.debug(`Pausing bucket for ${cost} cost`);
+    console.log(`Pausing bucket for ${cost} cost`);
     this.throttle(cost, false, true);
   }
 
@@ -307,7 +322,7 @@ export class LeakyBucket implements LeakyBucketApi {
     this.drain();
     this.stopTimer();
     const cost = this.refillRate * seconds;
-    // log.debug(`Pausing bucket for ${seconds} seonds`);
+    console.log(`Pausing bucket for ${seconds} seonds`);
     this.pauseByCost(cost);
   }
 
@@ -317,7 +332,7 @@ export class LeakyBucket implements LeakyBucketApi {
    * @private
    */
   drain() {
-    // log.debug(`Draining the bucket, removing ${this.currentCapacity} from it, so that the current capacity is 0`);
+    console.log(`Draining the bucket, removing ${this.currentCapacity} from it, so that the current capacity is 0`);
     this.currentCapacity = 0;
     this.lastRefill = Date.now();
   }
@@ -329,7 +344,7 @@ export class LeakyBucket implements LeakyBucketApi {
    * @param {number} timeout in seonds
    */
   setTimeout(timeout: number) {
-    // log.debug(`the buckets timeout is now ${timeout}`);
+    console.log(`the buckets timeout is now ${timeout}`);
     this.options.timeout = timeout;
     this.updateVariables();
     return this;
@@ -341,7 +356,7 @@ export class LeakyBucket implements LeakyBucketApi {
    * @param {number} interval in seonds
    */
   setInterval(interval: number) {
-    // log.debug(`the buckets interval is now ${interval}`);
+    console.log(`the buckets interval is now ${interval}`);
     this.options.interval = interval;
     this.updateVariables();
     return this;
@@ -353,7 +368,7 @@ export class LeakyBucket implements LeakyBucketApi {
    * @param {number} capacity
    */
   setCapacity(capacity: number) {
-    // log.debug(`the buckets capacity is now ${capacity}`);
+    console.log(`the buckets capacity is now ${capacity}`);
     this.options.capacity = capacity;
     this.updateVariables();
     return this;
@@ -373,7 +388,7 @@ export class LeakyBucket implements LeakyBucketApi {
     // the rate, at which the leaky bucket is filled per second
     this.refillRate = (capacity || 1) / (interval || 1);
 
-    // log.debug(`the buckets max capacity is now ${this.maxCapacity}`);
-    // log.debug(`the buckets refill rate is now ${this.refillRate}`);
+    console.log(`the buckets max capacity is now ${this.maxCapacity}`);
+    console.log(`the buckets refill rate is now ${this.refillRate}`);
   }
 }
