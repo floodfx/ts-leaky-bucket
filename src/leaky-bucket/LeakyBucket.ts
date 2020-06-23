@@ -23,6 +23,7 @@ export class LeakyBucket implements LeakyBucketApi {
     timeout: 60, // wait in seconds
     interval: 60000, //MS
   };
+
   private options: LeakyBucketOptions;
 
   private queue: LeakyBucketItem[] = [];
@@ -30,10 +31,13 @@ export class LeakyBucket implements LeakyBucketApi {
   private currentCapacity: number;
   private lastRefill: number = 0; // e.g. Date.now
   private timer?: NodeJS.Timeout;
-  private emptyPromise?: Promise<void>;
-  private emptyPromiseResolver?: () => void;
+
   refillRate: number = 0;
   maxCapacity: number = 0;
+
+  // used for awaitEmpty
+  private emptyPromise?: Promise<void>;
+  private emptyPromiseResolver?: () => void;
 
   constructor(options?: LeakyBucketOptions) {
     this.options = {
@@ -42,23 +46,29 @@ export class LeakyBucket implements LeakyBucketApi {
     };
 
     this.currentCapacity = this.options.capacity;
-    this.updateVariables();
-    // create this before adding items to the queue
+
+    this.calcMaxCapacityAndRefillRate();
     this.maybeCreateEmptyPromiseResolver();
   }
 
-  get capacity() {
-    return this.options.capacity;
-  }
-
-  get timeout() {
-    return this.options.timeout;
-  }
-
-  get interval() {
-    return this.options.interval;
-  }
-
+  /**
+   * The throttle method is used to throttle things. it is async and will resolve either
+   * immediatelly, if there is space in the bucket, than can be bursted, or it will wait
+   * until there is enough capacity left to execute the item with the given cost. if the
+   * bucket is overflowing, and the item cannot be executed within the timeout of the bucket,
+   * the call will be rejected with an error.
+   *
+   * @param {number} cost=1 the cost of the item to be throttled. is the cost is unknown,
+   *                        the cost can be payed after execution using the pay method.
+   *                        defaults to 1.
+   * @param {boolean} append = true set to false if the item needs ot be added to the
+   *                                beginning of the queue
+   * @param {boolean} isPause = false defines if the element is a pause elemtn, if yes, it
+   *                                  will not be cleaned off of the queue when checking
+   *                                  for overflowing elements
+   * @returns {promise} resolves when the item can be executed, rejects if the item cannot
+   *                    be executed in time
+   */
   async throttle(cost: number = 1, append: boolean = true, isPause: boolean = false) {
     const maxCurrentCapacity = this.getCurrentMaxCapacity();
 
@@ -95,7 +105,11 @@ export class LeakyBucket implements LeakyBucketApi {
     });
   }
 
-  startTimer() {
+  /**
+   * either executes directly when enough capacity is present or delays the
+   * execution until enough capacity is available.
+   */
+  private startTimer() {
     if (!this.timer && this.queue.length > 0) {
       const item = this.getFirstItem();
       console.log(`Processing an item with the cost of ${item?.cost}`);
@@ -172,19 +186,15 @@ export class LeakyBucket implements LeakyBucketApi {
   /**
    * ends the bucket. The bucket may be recycled after this call
    */
-  end() {
-    // log.warn(`Ending bucket!`);
+  stopTimerAndClearQueue() {
     this.stopTimer();
     this.clear();
   }
 
   /**
    * removes all items from the queue, does not stop the timer though
-   *
-   * @privae
    */
-  clear() {
-    console.log(`Resetting queue`);
+  private clear() {
     this.queue = [];
   }
 
@@ -213,11 +223,35 @@ export class LeakyBucket implements LeakyBucketApi {
   }
 
   /**
-   * stops the running times
+   * pause the bucket for the given cost. means that an item is added in the
+   * front of the queue with the cost passed to this method
    *
-   * @private
+   * @param {number} cost the cost to pasue by
    */
-  stopTimer() {
+  pauseByCost(cost: number) {
+    this.stopTimer();
+    console.log(`Pausing bucket for ${cost} cost`);
+    this.throttle(cost, false, true);
+  }
+
+  /**
+   * pause the bucket for n seconds. means that an item with the cost for one
+   * second is added at the beginning of the queue
+   *
+   * @param {number} seconds the number of seconds to pause the bucket by
+   */
+  pause(seconds = 1) {
+    this.drain();
+    this.stopTimer();
+    const cost = this.refillRate * seconds;
+    console.log(`Pausing bucket for ${seconds} seonds`);
+    this.pauseByCost(cost);
+  }
+
+  /**
+   * stops the running times
+   */
+  private stopTimer() {
     if (this.timer) {
       console.log(`Stopping timer`);
       clearTimeout(this.timer);
@@ -228,10 +262,8 @@ export class LeakyBucket implements LeakyBucketApi {
   /**
    * refills the bucket with capacity which has become available since the
    * last refill. starts to refill after a call has started using capacity
-   *
-   * @private
    */
-  refill() {
+  private refill() {
     const { capacity } = this.options;
     // don't do refills, if we're already full
     if (this.currentCapacity < capacity) {
@@ -240,7 +272,7 @@ export class LeakyBucket implements LeakyBucketApi {
       this.currentCapacity += refillAmount;
       console.log(
         `Refilled the bucket with ${refillAmount}, last refill was ${
-        this.lastRefill
+          this.lastRefill
         }, current Date is ${Date.now()}, diff is ${Date.now() - this.lastRefill} msec`,
       );
 
@@ -259,10 +291,8 @@ export class LeakyBucket implements LeakyBucketApi {
   /**
    * gets the currenlty avilable max capacity, respecintg
    * the capacity that is already used in the moment
-   *
-   * @private
    */
-  getCurrentMaxCapacity() {
+  private getCurrentMaxCapacity() {
     this.refill();
     return this.maxCapacity - (this.options.capacity - this.currentCapacity);
   }
@@ -270,10 +300,8 @@ export class LeakyBucket implements LeakyBucketApi {
   /**
    * removes all items that cannot be executed in time due to items
    * that were added in front of them in the queue (mostly pause items)
-   *
-   * @private
    */
-  cleanQueue() {
+  private cleanQueue() {
     const maxCapacity = this.getCurrentMaxCapacity();
     let currentCapacity = 0;
 
@@ -302,10 +330,8 @@ export class LeakyBucket implements LeakyBucketApi {
 
   /**
    * returns the first item from the queue
-   *
-   * @private
    */
-  getFirstItem() {
+  private getFirstItem() {
     if (this.queue.length > 0) {
       return this.queue[0];
     } else {
@@ -314,85 +340,30 @@ export class LeakyBucket implements LeakyBucketApi {
   }
 
   /**
-   * pasue the bucket for the given cost. means that an item is added in the
-   * front of the queue with the cost passed to this method
-   *
-   * @param {number} cost the cost to pasue by
-   */
-  pauseByCost(cost: number) {
-    this.stopTimer();
-    console.log(`Pausing bucket for ${cost} cost`);
-    this.throttle(cost, false, true);
-  }
-
-  /**
-   * pause the bucket for n seconds. means that an item with the cost for one
-   * second is added at the beginning of the queue
-   *
-   * @param {number} seconds the number of seconds to pause the bucket by
-   */
-  pause(seconds = 1) {
-    this.drain();
-    this.stopTimer();
-    const cost = this.refillRate * seconds;
-    console.log(`Pausing bucket for ${seconds} seonds`);
-    this.pauseByCost(cost);
-  }
-
-  /**
    * drains the bucket, so that nothing can be exuted at the moment
-   *
-   * @private
    */
-  drain() {
+  private drain() {
     console.log(`Draining the bucket, removing ${this.currentCapacity} from it, so that the current capacity is 0`);
     this.currentCapacity = 0;
     this.lastRefill = Date.now();
   }
 
-  /**
-   * set the timeout value for the bucket. this is the amount of time no item
-   * may longer wait for.
-   *
-   * @param {number} timeout in seonds
-   */
-  setTimeout(timeout: number) {
-    console.log(`the buckets timeout is now ${timeout}`);
-    this.options.timeout = timeout;
-    this.updateVariables();
-    return this;
+  get capacity() {
+    return this.options.capacity;
+  }
+
+  get timeout() {
+    return this.options.timeout;
+  }
+
+  get interval() {
+    return this.options.interval;
   }
 
   /**
-   * set the interval within whch the capacity can be used
-   *
-   * @param {number} interval in seonds
+   * calculates the values maxCapacity and refillRate
    */
-  setInterval(interval: number) {
-    console.log(`the buckets interval is now ${interval}`);
-    this.options.interval = interval;
-    this.updateVariables();
-    return this;
-  }
-
-  /**
-   * set the capacity of the bucket. this si the capacity that can be used per interval
-   *
-   * @param {number} capacity
-   */
-  setCapacity(capacity: number) {
-    console.log(`the buckets capacity is now ${capacity}`);
-    this.options.capacity = capacity;
-    this.updateVariables();
-    return this;
-  }
-
-  /**
-   * claculates the values of some frequently used variables on the bucket
-   *
-   * @private
-   */
-  updateVariables() {
+  private calcMaxCapacityAndRefillRate() {
     const { timeout, interval, capacity } = this.options;
     // take one as default for each variable since this method may be called
     // before every variable was set

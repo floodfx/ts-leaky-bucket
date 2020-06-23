@@ -35,6 +35,7 @@ describe("Leaky Bucket", () => {
   });
 
   test("Overflow when an excess item is added", async () => {
+    expect.assertions(1);
     const bucket = new LeakyBucket({
       capacity: 100,
       interval: 60,
@@ -47,25 +48,25 @@ describe("Leaky Bucket", () => {
 
       // since the throttle with a cost of 500 was 400 cost over the
       // cost that can be processed immediatelly, the bucket needs to be ended
-      bucket.end();
+      bucket.stopTimerAndClearQueue();
     });
   });
 
   test("Overlow already added items when pausing the bucket", async () => {
+    expect.assertions(1);
     const bucket = new LeakyBucket({
       capacity: 60,
       interval: 60,
       timeout: 70,
     });
 
-    bucket.throttle(60);
-    bucket.throttle(5);
-    bucket.throttle(5).catch(async (err) => {
+    bucket.throttle(80).catch(async (err) => {
       expect(err).not.toBeUndefined();
+      await bucket.awaitEmpty();
 
       // since the throttle with a cost of 500 was 400 cost over the
       // cost that can be processed immediatelly, the bucket needs to be ended
-      bucket.end();
+      bucket.stopTimerAndClearQueue();
     });
 
     bucket.pause();
