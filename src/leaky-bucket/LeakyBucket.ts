@@ -1,11 +1,11 @@
 export interface LeakyBucketOptions {
   capacity: number;
   intervalMillis: number;
-  timeoutMillis?: number;
+  additionalTimeoutMillis?: number;
 }
 
 export interface LeakyBucketApi {
-  throttle(cost: number, append: boolean, isPause: boolean): Promise<void>;
+  maybeThrottle(cost: number, append: boolean, isPause: boolean): Promise<void>;
   pause(seconds: number): void;
   awaitEmpty(): Promise<void>;
 }
@@ -24,7 +24,7 @@ export class LeakyBucket implements LeakyBucketApi {
   private totalCost: number = 0;
   private currentCapacity: number;
 
-  private lastRefill: number = 0; // i.e. Date.now
+  private lastRefillTs: number = 0; // i.e. Date.now
   private timer?: NodeJS.Timeout;
 
   refillRatePerSecond: number = 0;
@@ -35,11 +35,11 @@ export class LeakyBucket implements LeakyBucketApi {
   private emptyPromiseResolver?: () => void;
 
   constructor(options: LeakyBucketOptions) {
-    // default timeout millis to intervalMillis if not set
-    const timeoutMillis = options.timeoutMillis ? options.timeoutMillis : options.intervalMillis;
+    // default addiitional time out to 0
+    const additionalTimeoutMillis = options.additionalTimeoutMillis ? options.additionalTimeoutMillis : 0;
     this.options = {
       ...options,
-      timeoutMillis,
+      additionalTimeoutMillis,
     };
 
     this.currentCapacity = this.options.capacity;
@@ -66,7 +66,7 @@ export class LeakyBucket implements LeakyBucketApi {
    * @returns {promise} resolves when the item can be executed, rejects if the item cannot
    *                    be executed in time
    */
-  async throttle(cost: number = 1, append: boolean = true, isPause: boolean = false) {
+  async maybeThrottle(cost: number = 1, append: boolean = true, isPause: boolean = false) {
     const maxCurrentCapacity = this.getCurrentMaxCapacity();
 
     // if items are added at the beginning, the excess items will be remove
@@ -207,8 +207,8 @@ export class LeakyBucket implements LeakyBucketApi {
 
     // store the date the leky bucket was starting to leak
     // so that it can be refilled correctly
-    if (this.lastRefill === null) {
-      this.lastRefill = Date.now();
+    if (this.lastRefillTs === null) {
+      this.lastRefillTs = Date.now();
     }
   }
 
@@ -220,7 +220,7 @@ export class LeakyBucket implements LeakyBucketApi {
    */
   pauseByCost(cost: number) {
     this.stopTimer();
-    this.throttle(cost, false, true);
+    this.maybeThrottle(cost, false, true);
   }
 
   /**
@@ -253,16 +253,16 @@ export class LeakyBucket implements LeakyBucketApi {
     // don't do refills, if we're already full
     if (this.currentCapacity < capacity) {
       // refill the currently avilable capacity
-      const refillAmount = ((Date.now() - this.lastRefill) / 1000) * this.refillRatePerSecond;
+      const refillAmount = ((Date.now() - this.lastRefillTs) / 1000) * this.refillRatePerSecond;
       this.currentCapacity += refillAmount;
 
       // make sure, that no more capacity is added than is the maximum
       if (this.currentCapacity >= capacity) {
         this.currentCapacity = capacity;
-        this.lastRefill = 0;
+        this.lastRefillTs = 0;
       } else {
         // date of last refill, ued for the next refill
-        this.lastRefill = Date.now();
+        this.lastRefillTs = Date.now();
       }
     }
   }
@@ -323,15 +323,15 @@ export class LeakyBucket implements LeakyBucketApi {
    */
   private drain() {
     this.currentCapacity = 0;
-    this.lastRefill = Date.now();
+    this.lastRefillTs = Date.now();
   }
 
   get capacity() {
     return this.options.capacity;
   }
 
-  get timeoutMillis() {
-    return this.options.timeoutMillis;
+  get additionalTimeoutMillis() {
+    return this.options.additionalTimeoutMillis;
   }
 
   get intervalMillis() {
@@ -342,12 +342,13 @@ export class LeakyBucket implements LeakyBucketApi {
    * calculates the values maxCapacity and refillRate
    */
   private calcMaxCapacityAndRefillRate() {
-    const { timeoutMillis, intervalMillis, capacity } = this.options;
+    const { additionalTimeoutMillis, intervalMillis, capacity } = this.options;
 
-    // max capaciy is timeout seconds / interval ms * capacity
-    this.maxCapacity = (timeoutMillis / intervalMillis) * capacity;
+    // max capacity is always greater than or equal to capacity
+    // since we want any timeout to be in additional to base interval
+    this.maxCapacity = ((additionalTimeoutMillis + intervalMillis) / intervalMillis) * capacity;
 
-    // the rate, at which the leaky bucket is filled per second
+    // the rate, at which the leaky bucket can be filled per second
     this.refillRatePerSecond = (capacity / intervalMillis) * 1000;
   }
 }

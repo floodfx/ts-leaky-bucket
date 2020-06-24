@@ -4,16 +4,16 @@ describe("Leaky Bucket", () => {
   test("Compute factors correctly", async () => {
     const capacity = 120;
     const intervalMillis = 60_000;
-    const timeoutMillis = 300_000;
+    const additionalTimeoutMillis = 240_000;
     const bucket = new LeakyBucket({
       capacity,
       intervalMillis,
-      timeoutMillis,
+      additionalTimeoutMillis,
     });
 
     expect(bucket.capacity).toEqual(capacity);
     expect(bucket.intervalMillis).toEqual(intervalMillis);
-    expect(bucket.timeoutMillis).toEqual(timeoutMillis);
+    expect(bucket.additionalTimeoutMillis).toEqual(additionalTimeoutMillis);
 
     expect(bucket.maxCapacity).toEqual(600);
     expect(bucket.refillRatePerSecond).toEqual(2);
@@ -29,7 +29,7 @@ describe("Leaky Bucket", () => {
 
     expect(bucket.capacity).toEqual(capacity);
     expect(bucket.intervalMillis).toEqual(intervalMillis);
-    expect(bucket.timeoutMillis).toEqual(intervalMillis);
+    expect(bucket.additionalTimeoutMillis).toEqual(0); // default additional timeout to 0
 
     expect(bucket.maxCapacity).toEqual(120);
     expect(bucket.refillRatePerSecond).toEqual(2);
@@ -39,13 +39,13 @@ describe("Leaky Bucket", () => {
     const bucket = new LeakyBucket({
       capacity: 100,
       intervalMillis: 60_000,
-      timeoutMillis: 300_000,
+      additionalTimeoutMillis: 300_000,
     });
 
     const start = Date.now();
 
     for (let i = 0; i < 101; i++) {
-      await bucket.throttle();
+      await bucket.maybeThrottle();
     }
 
     const duration = Date.now() - start;
@@ -57,11 +57,11 @@ describe("Leaky Bucket", () => {
     const bucket = new LeakyBucket({
       capacity: 100,
       intervalMillis: 60_000,
-      timeoutMillis: 300_000,
+      additionalTimeoutMillis: 240_000,
     });
 
-    bucket.throttle(500);
-    await bucket.throttle(1).catch(async (err) => {
+    bucket.maybeThrottle(500);
+    await bucket.maybeThrottle(1).catch(async (err) => {
       expect(err).not.toBeUndefined();
 
       // since the throttle with a cost of 500 was 400 cost over the
@@ -75,10 +75,10 @@ describe("Leaky Bucket", () => {
     const bucket = new LeakyBucket({
       capacity: 60,
       intervalMillis: 60_000,
-      timeoutMillis: 70_000,
+      additionalTimeoutMillis: 10_000,
     });
 
-    bucket.throttle(80).catch(async (err) => {
+    bucket.maybeThrottle(80).catch(async (err) => {
       expect(err).not.toBeUndefined();
       await bucket.awaitEmpty();
 
@@ -94,12 +94,12 @@ describe("Leaky Bucket", () => {
     const bucket = new LeakyBucket({
       capacity: 100,
       intervalMillis: 60_000,
-      timeoutMillis: 70_000,
+      additionalTimeoutMillis: 10_000,
     });
 
     const start = Date.now();
-    bucket.throttle(100);
-    bucket.throttle(1);
+    bucket.maybeThrottle(100);
+    bucket.maybeThrottle(1);
 
     await bucket.awaitEmpty();
 
@@ -112,12 +112,12 @@ describe("Leaky Bucket", () => {
     const bucket = new LeakyBucket({
       capacity: 100,
       intervalMillis: 60_000,
-      timeoutMillis: 70_000,
+      additionalTimeoutMillis: 10_000,
     });
 
     let start = Date.now();
-    bucket.throttle(100);
-    bucket.throttle(1);
+    bucket.maybeThrottle(100);
+    bucket.maybeThrottle(1);
 
     await bucket.awaitEmpty();
 
@@ -126,8 +126,8 @@ describe("Leaky Bucket", () => {
     expect(duration).toBeLessThan(100);
 
     start = Date.now();
-    bucket.throttle(100);
-    bucket.throttle(1);
+    bucket.maybeThrottle(100);
+    bucket.maybeThrottle(1);
 
     await bucket.awaitEmpty();
 
@@ -140,15 +140,15 @@ describe("Leaky Bucket", () => {
     const bucket = new LeakyBucket({
       capacity: 60,
       intervalMillis: 60_000,
-      timeoutMillis: 120_000,
+      additionalTimeoutMillis: 60_000,
     });
 
     const start = Date.now();
 
-    await bucket.throttle(10);
-    await bucket.throttle(10);
+    await bucket.maybeThrottle(10);
+    await bucket.maybeThrottle(10);
     await bucket.pause(500);
-    await bucket.throttle(0.5);
+    await bucket.maybeThrottle(0.5);
 
     const duration = Date.now() - start;
     expect(duration).toBeGreaterThanOrEqual(1000);
