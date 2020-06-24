@@ -16,7 +16,7 @@ describe("Leaky Bucket", () => {
     expect(bucket.timeoutMillis).toEqual(timeoutMillis);
 
     expect(bucket.maxCapacity).toEqual(600);
-    expect(bucket.refillRate).toEqual(2);
+    expect(bucket.refillRatePerSecond).toEqual(2);
   });
 
   test("Compute factors default timeoutMillis", async () => {
@@ -24,7 +24,7 @@ describe("Leaky Bucket", () => {
     const intervalMillis = 60_000;
     const bucket = new LeakyBucket({
       capacity,
-      intervalMillis
+      intervalMillis,
     });
 
     expect(bucket.capacity).toEqual(capacity);
@@ -32,7 +32,7 @@ describe("Leaky Bucket", () => {
     expect(bucket.timeoutMillis).toEqual(intervalMillis);
 
     expect(bucket.maxCapacity).toEqual(120);
-    expect(bucket.refillRate).toEqual(2);
+    expect(bucket.refillRatePerSecond).toEqual(2);
   });
 
   test("Excute items that are burstable and wait for the ones that cannot burst", async () => {

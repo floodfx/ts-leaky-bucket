@@ -18,7 +18,6 @@ interface LeakyBucketItem {
 }
 
 export class LeakyBucket implements LeakyBucketApi {
-
   private options: Required<LeakyBucketOptions>;
 
   private queue: LeakyBucketItem[] = [];
@@ -28,7 +27,7 @@ export class LeakyBucket implements LeakyBucketApi {
   private lastRefill: number = 0; // i.e. Date.now
   private timer?: NodeJS.Timeout;
 
-  refillRate: number = 0;
+  refillRatePerSecond: number = 0;
   maxCapacity: number = 0;
 
   // used for awaitEmpty
@@ -41,7 +40,7 @@ export class LeakyBucket implements LeakyBucketApi {
     this.options = {
       ...options,
       timeoutMillis,
-    }
+    };
 
     this.currentCapacity = this.options.capacity;
 
@@ -123,7 +122,7 @@ export class LeakyBucket implements LeakyBucketApi {
         this.startTimer();
       } else {
         const requiredDelta = (item?.cost || 0) + this.currentCapacity * -1;
-        const timeToDelta = (requiredDelta / this.refillRate) * 1000;
+        const timeToDelta = (requiredDelta / this.refillRatePerSecond) * 1000;
 
         // log.info(`Waiting ${timeToDelta} for topping up ${requiredDelta} capacity until the next item can be processed ...`);
         // wait until the next item can be handled
@@ -231,7 +230,7 @@ export class LeakyBucket implements LeakyBucketApi {
   pause(millis = 1000) {
     this.drain();
     this.stopTimer();
-    const cost = this.refillRate * (millis / 1000);
+    const cost = this.refillRatePerSecond * (millis / 1000);
     this.pauseByCost(cost);
   }
 
@@ -254,7 +253,7 @@ export class LeakyBucket implements LeakyBucketApi {
     // don't do refills, if we're already full
     if (this.currentCapacity < capacity) {
       // refill the currently avilable capacity
-      const refillAmount = ((Date.now() - this.lastRefill) / 1000) * this.refillRate;
+      const refillAmount = ((Date.now() - this.lastRefill) / 1000) * this.refillRatePerSecond;
       this.currentCapacity += refillAmount;
 
       // make sure, that no more capacity is added than is the maximum
@@ -349,6 +348,6 @@ export class LeakyBucket implements LeakyBucketApi {
     this.maxCapacity = (timeoutMillis / intervalMillis) * capacity;
 
     // the rate, at which the leaky bucket is filled per second
-    this.refillRate = (capacity / intervalMillis) * 1000;
+    this.refillRatePerSecond = (capacity / intervalMillis) * 1000;
   }
 }
