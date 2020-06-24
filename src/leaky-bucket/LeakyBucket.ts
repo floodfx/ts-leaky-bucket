@@ -60,7 +60,7 @@ export class LeakyBucket implements LeakyBucketApi {
    *                        defaults to 1.
    * @param {boolean} append = true set to false if the item needs ot be added to the
    *                                beginning of the queue
-   * @param {boolean} isPause = false defines if the element is a pause elemtn, if yes, it
+   * @param {boolean} isPause = false defines if the element is a pause element, if yes, it
    *                                  will not be cleaned off of the queue when checking
    *                                  for overflowing elements
    * @returns {promise} resolves when the item can be executed, rejects if the item cannot
@@ -191,10 +191,8 @@ export class LeakyBucket implements LeakyBucketApi {
   }
 
   /**
-   * can be used to pay costs for items where the cost is clear after exection
-   * this will devcrease the current capacity availabe on the bucket.
-   *
-   * @param {number} cost the ost to pay
+   * can be used to pay costs for items where the cost is clear after execution
+   * this will decrease the current capacity available on the bucket.
    */
   pay(cost: number) {
     // reduce the current capacity, so that bursts
@@ -215,8 +213,6 @@ export class LeakyBucket implements LeakyBucketApi {
   /**
    * pause the bucket for the given cost. means that an item is added in the
    * front of the queue with the cost passed to this method
-   *
-   * @param {number} cost the cost to pasue by
    */
   pauseByCost(cost: number) {
     this.stopTimer();
@@ -224,7 +220,7 @@ export class LeakyBucket implements LeakyBucketApi {
   }
 
   /**
-   * pause the bucket for n seconds. means that an item with the cost for one
+   * pause the bucket for given millis. means that an item with the cost for one
    * second is added at the beginning of the queue
    */
   pause(millis = 1000) {
