@@ -1,7 +1,7 @@
 export interface LeakyBucketOptions {
   capacity: number;
-  timeoutMillis: number;
   intervalMillis: number;
+  timeoutMillis?: number;
 }
 
 export interface LeakyBucketApi {
@@ -18,13 +18,8 @@ interface LeakyBucketItem {
 }
 
 export class LeakyBucket implements LeakyBucketApi {
-  private defaultOptions: LeakyBucketOptions = {
-    capacity: 60,
-    timeoutMillis: 60000,
-    intervalMillis: 60000,
-  };
 
-  private options: LeakyBucketOptions;
+  private options: Required<LeakyBucketOptions>;
 
   private queue: LeakyBucketItem[] = [];
   private totalCost: number = 0;
@@ -40,11 +35,13 @@ export class LeakyBucket implements LeakyBucketApi {
   private emptyPromise?: Promise<void>;
   private emptyPromiseResolver?: () => void;
 
-  constructor(options?: LeakyBucketOptions) {
+  constructor(options: LeakyBucketOptions) {
+    // default timeout millis to intervalMillis if not set
+    const timeoutMillis = options.timeoutMillis ? options.timeoutMillis : options.intervalMillis;
     this.options = {
-      ...this.defaultOptions,
       ...options,
-    };
+      timeoutMillis,
+    }
 
     this.currentCapacity = this.options.capacity;
 
@@ -352,6 +349,6 @@ export class LeakyBucket implements LeakyBucketApi {
     this.maxCapacity = (timeoutMillis / intervalMillis) * capacity;
 
     // the rate, at which the leaky bucket is filled per second
-    this.refillRate = capacity / intervalMillis * 1000;
+    this.refillRate = (capacity / intervalMillis) * 1000;
   }
 }
