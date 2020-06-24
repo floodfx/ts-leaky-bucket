@@ -230,13 +230,11 @@ export class LeakyBucket implements LeakyBucketApi {
   /**
    * pause the bucket for n seconds. means that an item with the cost for one
    * second is added at the beginning of the queue
-   *
-   * @param {number} seconds the number of seconds to pause the bucket by
    */
-  pause(seconds = 1) {
+  pause(millis = 1000) {
     this.drain();
     this.stopTimer();
-    const cost = this.refillRate * seconds;
+    const cost = this.refillRate * (millis / 1000);
     this.pauseByCost(cost);
   }
 
@@ -351,9 +349,9 @@ export class LeakyBucket implements LeakyBucketApi {
     const { timeoutMillis, intervalMillis, capacity } = this.options;
 
     // max capaciy is timeout seconds / interval ms * capacity
-    this.maxCapacity = (timeoutMillis / 1000 / intervalMillis) * capacity;
+    this.maxCapacity = (timeoutMillis / intervalMillis) * capacity;
 
     // the rate, at which the leaky bucket is filled per second
-    this.refillRate = capacity / intervalMillis;
+    this.refillRate = capacity / intervalMillis * 1000;
   }
 }
